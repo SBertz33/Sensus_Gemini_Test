@@ -1,7 +1,8 @@
 #include <HardwareSerial.h>
 
-#define BAUD_RATE 9600
-#define RX_BUFFER_SIZE 64  // Adjust size as needed
+#define BAUD_RATE 1200
+#define RX_BUFFER_SIZE 1024  // Adjust size as needed
+#define START_UP_DELAY 300 // ms between CLK high and MSG start
 
 HardwareSerial mySerial(1); // UART1
 uint8_t tx_bytes[] = { 0xA5, 0x0F, 0x06, 0x90, 0x1D, 0x00, 0x00, 0x00, 0xF9, 0x28 };
@@ -13,8 +14,10 @@ void gemini_test_msg(void);
 const int CLOCK_PIN = 12;     // Clock output to meter
 const int DATA_PIN = 13;      // Data input from meter (open-drain)
 const int BUTTON_PIN = 14;    // Button input (active LOW)
+const int PROTOCOL_PIN = 25;
 
 const unsigned long BIT_DELAY_US = 400;  // Approximate delay between clock edges
+#define BIT_DURATION_US (104)
 
 void setup() {
   Serial.begin(115200);
@@ -22,6 +25,7 @@ void setup() {
   pinMode(CLOCK_PIN, OUTPUT);
   pinMode(DATA_PIN, INPUT_PULLUP);  // Meter releases to HIGH (open-drain)
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(PROTOCOL_PIN, INPUT_PULLUP);
 
   digitalWrite(CLOCK_PIN, LOW); // Idle state is HIGH
   Serial.println("Ready to read meter on button press...");
@@ -36,8 +40,30 @@ void loop() {
     //set clock pin high, wait for 500ms
     digitalWrite(CLOCK_PIN, HIGH);
     //SENSUS READ
-    delay(750);
-    readMeterFrame();
+    delay(START_UP_DELAY);
+
+    
+    if (digitalRead(PROTOCOL_PIN) == LOW)
+    {
+      // THIS IS SENSUS
+      readMeterFrame();
+    }else
+    {
+      // THIS IS GEMINI
+      //uart_send_byte(0xA5);
+      static int i = 0;
+      uint8_t msg[2][10] = {
+        { 0xA5, 0x5A, 0xFF, 0x00, 0xC3, 0x3C, 0x7E, 0x81, 0x42, 0x24 },
+        { 0xA5, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09 }
+      };
+      uart_send_buffer(msg[i], sizeof(msg));
+
+      i = i++%2;
+    }
+
+    digitalWrite(CLOCK_PIN, HIGH);
+
+    delay(100);
     //digitalWrite(CLOCK_PIN, LOW);
 
     // Delay between sensus and gemini
@@ -54,7 +80,7 @@ void loop() {
 
 void readMeterFrame() {
   String output = "";
-  const int num_chars = 16;  // Read up to 16 ASCII characters (incl. \r)
+  const int num_chars = 500;  // Read up to 16 ASCII characters (incl. \r)
 
   for (int c = 0; c < num_chars; ++c) {
     char ch = readSensusChar();
@@ -140,4 +166,46 @@ while ((millis() - start_time < 3000) && rx_len < RX_BUFFER_SIZE) {
     Serial.printf("0x%02X ", rx_buffer[i]);
   }
   Serial.println();
+}
+
+
+
+void uart_send_byte(uint8_t data) {
+  // Start bit (LOW)
+  digitalWrite(CLOCK_PIN, LOW);
+  delayMicroseconds(BIT_DURATION_US);
+
+  // Send 8 data bits (LSB first)
+  for (uint8_t i = 0; i < 8; i++) {
+    bool bit = data & 0x01;
+    digitalWrite(CLOCK_PIN, bit);
+    delayMicroseconds(BIT_DURATION_US);
+    data >>= 1;
+  }
+
+  // Stop bit (HIGH)
+  digitalWrite(CLOCK_PIN, HIGH);
+  delayMicroseconds(BIT_DURATION_US);
+}
+
+void uart_send_buffer(const uint8_t *data, size_t length) 
+{
+  for (size_t i = 0; i < length; i++) {
+    uint8_t byte = data[i];
+
+    // Start bit (LOW)
+    digitalWrite(CLOCK_PIN, LOW);
+    delayMicroseconds(BIT_DURATION_US);
+
+    // Send 8 data bits (LSB first)
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      digitalWrite(CLOCK_PIN, byte & 0x01);
+      delayMicroseconds(BIT_DURATION_US);
+      byte >>= 1;
+    }
+
+    // Stop bit (HIGH)
+    digitalWrite(CLOCK_PIN, HIGH);
+    delayMicroseconds(BIT_DURATION_US);
+  }
 }
