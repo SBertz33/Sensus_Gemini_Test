@@ -2,18 +2,18 @@
 
 #define BAUD_RATE 1200
 #define RX_BUFFER_SIZE 1024  // Adjust size as needed
-#define START_UP_DELAY 300 // ms between CLK high and MSG start
+#define START_UP_DELAY 300   // ms between CLK high and MSG start
 
-HardwareSerial mySerial(1); // UART1
+HardwareSerial mySerial(1);  // UART1
 uint8_t tx_bytes[] = { 0xA5, 0x0F, 0x06, 0x90, 0x1D, 0x00, 0x00, 0x00, 0xF9, 0x28 };
 uint8_t rx_buffer[RX_BUFFER_SIZE];
 int rx_len = 0;
 
 void gemini_test_msg(void);
 
-const int CLOCK_PIN = 12;     // Clock output to meter
-const int DATA_PIN = 13;      // Data input from meter (open-drain)
-const int BUTTON_PIN = 14;    // Button input (active LOW)
+const int CLOCK_PIN = 12;   // Clock output to meter
+const int DATA_PIN = 13;    // Data input from meter (open-drain)
+const int BUTTON_PIN = 14;  // Button input (active LOW)
 const int PROTOCOL_PIN = 25;
 
 const unsigned long BIT_DELAY_US = 400;  // Approximate delay between clock edges
@@ -27,14 +27,15 @@ void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(PROTOCOL_PIN, INPUT_PULLUP);
 
-  digitalWrite(CLOCK_PIN, LOW); // Idle state is HIGH
+  digitalWrite(CLOCK_PIN, LOW);  // Idle state is HIGH
   Serial.println("Ready to read meter on button press...");
 }
 
 void loop() {
   if (digitalRead(BUTTON_PIN) == LOW) {
     delay(50);  // Simple debounce
-    while (digitalRead(BUTTON_PIN) == LOW);  // Wait for release
+    while (digitalRead(BUTTON_PIN) == LOW)
+      ;  // Wait for release
 
     Serial.println("Reading meter...");
     //set clock pin high, wait for 500ms
@@ -42,23 +43,20 @@ void loop() {
     //SENSUS READ
     delay(START_UP_DELAY);
 
-    
-    if (digitalRead(PROTOCOL_PIN) == LOW)
-    {
+
+    if (digitalRead(PROTOCOL_PIN) == LOW) {
       // THIS IS SENSUS
       readMeterFrame();
-    }else
-    {
+    } else {
       // THIS IS GEMINI
       //uart_send_byte(0xA5);
-      static int i = 0;
-      uint8_t msg[2][10] = {
-        { 0xA5, 0x5A, 0xFF, 0x00, 0xC3, 0x3C, 0x7E, 0x81, 0x42, 0x24 },
-        { 0xA5, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09 }
-      };
-      uart_send_buffer(msg[i], sizeof(msg));
-
-      i = i++%2;
+    uint8_t msg[1000] = {0};
+      msg[0]=0xA5;
+      for(int z=1; z<1000; z++)
+      {
+        msg[z]=z;
+      }
+      uart_send_buffer(msg, 1000);
     }
 
     digitalWrite(CLOCK_PIN, HIGH);
@@ -70,10 +68,9 @@ void loop() {
     //delay(1000);
 
     // Gemini Write / Read
-   // digitalWrite(CLOCK_PIN, LOW);
+    // digitalWrite(CLOCK_PIN, LOW);
     // delay(500);
-   // //gemini_test_msg();
-    
+    // //gemini_test_msg();
   }
   digitalWrite(CLOCK_PIN, LOW);
 }
@@ -96,7 +93,7 @@ char readSensusChar() {
   uint8_t byte = 0;
 
   // Wait for start bit (0)
-  while (readBit() != 0) { }
+  while (readBit() != 0) {}
 
   // Read 7 data bits (LSB first)
   for (int i = 0; i < 7; i++) {
@@ -129,34 +126,33 @@ uint8_t readBit() {
   return bit;
 }
 
-void gemini_test_msg(void)
-{
+void gemini_test_msg(void) {
   // Step 1: Configure DATA_PIN as UART TX, send data
   Serial.println("Sending command...");
-  mySerial.begin(BAUD_RATE, SERIAL_8N1, -1, DATA_PIN); // -1 = no RX, TX only
-  delay(10); // small delay for UART startup
+  mySerial.begin(BAUD_RATE, SERIAL_8N1, -1, DATA_PIN);  // -1 = no RX, TX only
+  delay(10);                                            // small delay for UART startup
 
   for (size_t i = 0; i < sizeof(tx_bytes); i++) {
     mySerial.write(tx_bytes[i]);
   }
-  mySerial.flush(); // wait until data is sent
-  delay(10);        // optional delay depending on target device response time
+  mySerial.flush();  // wait until data is sent
+  delay(10);         // optional delay depending on target device response time
   mySerial.end();
 
   // Step 2: Reconfigure DATA_PIN as UART RX, receive response
   Serial.println("Waiting for response...");
-  mySerial.begin(BAUD_RATE, SERIAL_8N1, DATA_PIN, -1); // RX only on DATA_PIN, no TX
-  delay(100); // wait for device to respond (adjust if needed)
+  mySerial.begin(BAUD_RATE, SERIAL_8N1, DATA_PIN, -1);  // RX only on DATA_PIN, no TX
+  delay(100);                                           // wait for device to respond (adjust if needed)
 
   // Read available bytes
-unsigned long start_time = millis();  // Record the time when we start waiting
+  unsigned long start_time = millis();  // Record the time when we start waiting
 
-while ((millis() - start_time < 3000) && rx_len < RX_BUFFER_SIZE) {
-  if (mySerial.available()) {
-    rx_buffer[rx_len++] = mySerial.read();
-    start_time = millis(); // reset timer after receiving a byte
+  while ((millis() - start_time < 3000) && rx_len < RX_BUFFER_SIZE) {
+    if (mySerial.available()) {
+      rx_buffer[rx_len++] = mySerial.read();
+      start_time = millis();  // reset timer after receiving a byte
+    }
   }
-}
 
   // Print received data
   Serial.print("Received ");
@@ -188,8 +184,7 @@ void uart_send_byte(uint8_t data) {
   delayMicroseconds(BIT_DURATION_US);
 }
 
-void uart_send_buffer(const uint8_t *data, size_t length) 
-{
+void uart_send_buffer(const uint8_t *data, size_t length) {
   for (size_t i = 0; i < length; i++) {
     uint8_t byte = data[i];
 
