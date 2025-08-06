@@ -34,20 +34,20 @@ void setup() {
 void loop() {
   if (digitalRead(BUTTON_PIN) == LOW) {
     delay(50);  // Simple debounce
-    while (digitalRead(BUTTON_PIN) == LOW)
-      ;  // Wait for release
+    while (digitalRead(BUTTON_PIN) == LOW);  // Wait for release
 
     Serial.println("Reading meter...");
     //set clock pin high, wait for 500ms
     digitalWrite(CLOCK_PIN, HIGH);
-    //SENSUS READ
-    delay(START_UP_DELAY);
-
-
     if (digitalRead(PROTOCOL_PIN) == LOW) {
+          //SENSUS READ
+    delay(START_UP_DELAY);
       // THIS IS SENSUS
       readMeterFrame();
     } else {
+
+    while(digitalRead(DATA_PIN) == HIGH);
+    delay(10);
       // THIS IS GEMINI
       //uart_send_byte(0xA5);
     uint8_t msg[1000] = {0};
